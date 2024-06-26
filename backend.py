@@ -28,13 +28,13 @@ def read_tables_kyc(supabaseObj) -> dict[pd.DataFrame]:
     """
     df_files = pd.DataFrame(supabaseObj.get_all_files())
     if len(df_files) == 0:
-        df_files = pd.DataFrame(columns=['id', 'created_at', 'name', 'storage_id', 'status'])
+        df_files = pd.DataFrame(columns=['id', 'created_at', 'name', 'ocr_json', 'ocr_text', 'storage_id', 'status'])
     df_pipelines = pd.DataFrame(supabaseObj.get_all_pipelines())
     if len(df_pipelines) == 0:
         df_pipelines = pd.DataFrame(columns=['id', 'created_at', 'name', 'config', 'prompt'])
     df_results = pd.DataFrame(supabaseObj.get_all_results())
     if len(df_results) == 0:
-        df_results = pd.DataFrame(columns=['id', 'created_at', 'pipeline_id', 'ocr_json', 'ocr_text', 'llm_json', 'llm_score', 'status', 'corrected', 'corrected_score', 'file_id'])
+        df_results = pd.DataFrame(columns=['id', 'created_at', 'pipeline_id', 'llm_json', 'llm_score', 'status', 'corrected', 'corrected_score', 'file_id'])
     return {'Files': df_files, 'Pipelines': df_pipelines, 'Results': df_results}
 
 # Langchain wrapper ---------------------------------------------------------------------------------------------
@@ -62,7 +62,7 @@ def init_chains_by_config(_generator, df_kie_config: pd.DataFrame, df_pipelines:
         chains[pipeline] = llm.get_extraction_chain(_generator, config_pipeline)
     return chains
 
-def apply_kie_files(supabaseObj, df_kie_config: pd.DataFrame, df_results: pd.DataFrame, chains: dict) -> pd.DataFrame:
+def apply_kie_files(supabaseObj, df_kie_config: pd.DataFrame, df_files: pd.DataFrame, df_results: pd.DataFrame, chains: dict) -> pd.DataFrame:
     """
     Apply Knowledge Information Extraction (KIE) to files based on the provided configuration.
 
@@ -90,12 +90,12 @@ def apply_kie_files(supabaseObj, df_kie_config: pd.DataFrame, df_results: pd.Dat
         pipeline_id = row.pipeline_id
         file_id = row.file_id
         chain, parser, new_parser = chains[pipeline_name]
-        ocr_text = df_results.loc[df_results['file_id'] == file_id, 'ocr_text'].iloc[0]
+        ocr_text = df_files.loc[df_files['id'] == file_id, 'ocr_text'].iloc[0]
         # Generate JSON extraction
         json_result = llm.generate_response(chain, parser, new_parser, ocr_text)
         st.json(json_result)
         kie_results.append(json_result)
-        supabaseObj.update_llm_result(row.result_id, pipeline_id, json_result)
+        supabaseObj.create_llm_result(file_id, pipeline_id, json_result)
         n_updated += 1
         bar_incremetor.increment()
         progress_perc = round(bar_incremetor.progress / len(df_kie_config) * 100)
@@ -126,13 +126,11 @@ def compute_metrics_kyc(supabaseObj, df_dict) -> dict:
     
     # 1st Metric: Number of files + Percentage of used files
     n_files = len(df_files)
-    p_used_files = 0 if n_files == 0 else round(len(df_files[df_files['id'].map(lambda x: x in df_results.file_id.unique())]) / n_files * 100)
-    metrics['Files'] = [n_files, p_used_files]
+    metrics['Files'] = [n_files, None]
     
     # 2nd Metric: Number of files processed by OCR + their percentage
-    n_files_ocr = df_results['file_id'].nunique()
-    p_files_ocr = 0 if n_files == 0 else round(n_files_ocr / n_files * 100)
-    metrics['OCR'] = [n_files_ocr, p_files_ocr]
+    n_files_ocr = df_files.dropna(subset=['ocr_json'])['id'].nunique()
+    metrics['OCR'] = [n_files_ocr, None]
     
     # 3rd Metric: Number of files processed by KIE + their percentage
     n_files_kie = df_results.dropna(subset=['llm_json'])['file_id'].nunique()
@@ -266,7 +264,7 @@ def kie_preprocess_config(df_files: pd.DataFrame, df_pipelines: pd.DataFrame, df
     index_to_remove = []
     for i, row in df.iterrows():
         if row.pipeline_id in df_results[df_results.file_id == row.file_id].pipeline_id.tolist():
-            #index_to_remove.append(i)
+            index_to_remove.append(i)
             st.info(f'{row.filepath} has already been processed with pipeline {row.pipeline}.')
     
     df = df.drop(index_to_remove)

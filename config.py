@@ -1,7 +1,7 @@
 import streamlit as st
 
 # LLM ---------------------------------------------------------------------------------
-GENERATOR_API_URI = "https://f4e0-34-42-158-198.ngrok-free.app/v1"
+GENERATOR_API_URI = "https://7e19-35-226-87-68.ngrok-free.app/v1"
 MAX_TOKENS = 200
 TEMPLATE_PROMPT = ("You are an advanced information extraction algorithm. "
 "Extract information from the provided text only if it is explicitly mentioned. "
@@ -12,7 +12,7 @@ TEMPLATE_PROMPT = ("You are an advanced information extraction algorithm. "
 
 
 # OCR ----------------------------------------------------------------------------------
-OCR_API_ENDPOINT = "https://fb02-34-42-158-198.ngrok-free.app/"
+OCR_API_ENDPOINT = "https://6a0e-35-226-87-68.ngrok-free.app/"
 FONT_PATH = "data/font/BioRhyme-Bold.otf"
 
 # Supabase ------------------------------------------------------------------------------

@@ -1,9 +1,13 @@
-from supabase import create_client, Client
+
 from io import BufferedReader, FileIO
 import os
+from supabase import create_client, Client
 import mimetypes
-import streamlit as st
-import config
+
+URL: str = "https://hxshejoduhitvgdqhxto.supabase.co"
+SERVICE_KEY :str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4c2hlam9kdWhpdHZnZHFoeHRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcxNTc3NjkxOCwiZXhwIjoyMDMxMzUyOTE4fQ.nan7NUHTngr_0cazDms5dy3mGFOF2hIjtEkxDOIIolA"
+
+STATUS = ["Used","Unused"]
 
 class SupabaseAdapter :
     """
@@ -25,10 +29,9 @@ class SupabaseAdapter :
         update_file_validation_result(self, file_id: str, corrected: dict, corrected_score: float) -> dict: Updates the validation result of a file in the database.
     """
     client: Client = None
-    STATUS: list = ["Used","Unused"]
-
+    
     def __init__(self):
-        self.client = create_client(config.URL, config.SERVICE_KEY)
+        self.client = create_client(URL, SERVICE_KEY)
         
     def create_pipeline(self, name: str, config: dict, prompt: str) -> dict:
         """
@@ -43,22 +46,8 @@ class SupabaseAdapter :
             dict: The data of the created pipeline.
         """
         return self.client.table("Pipelines").insert({"name": name, "config": config, "prompt": prompt}).execute().data[0]
+
     
-    def create_ocr_result(self, file_id: str, ocr_json: dict, ocr_text: str) -> dict:
-        """
-        Creates an ocr result with the given ocr_json, ocr_text, and file_id.
-
-        Args:
-            name (str): The name of the pipeline.
-            config (dict): The configuration for the pipeline.
-            prompt (str): The prompt for the pipeline.
-
-        Returns:
-            dict: The data of the created pipeline.
-        """
-        return self.client.table("Results").insert({"ocr_json": ocr_json, "ocr_text": ocr_text, "file_id": file_id}).execute().data[0]
-
-        
     def get_all_pipelines(self) -> list[dict]:
         """
         Retrieves all pipelines from the 'Pipelines' table.
@@ -104,7 +93,7 @@ class SupabaseAdapter :
         """
         return self.client.table("Pipelines").delete().eq("id", id).execute().data[0]
     
-    def _upload_file(self,file:BufferedReader, file_name:str) -> dict:
+    def _upload_file(self,file:BufferedReader ,file_name:str) -> dict:
         """
         Uploads a file to the storage.
 
@@ -119,7 +108,7 @@ class SupabaseAdapter :
         file_type = mimetypes.guess_type(file_name)[0]
         return self.client.storage.from_("kyc-files").upload(file_name,file,file_options={"content-type": file_type}).json()
     
-    def new_file(self,file:BufferedReader, file_name:str) -> str:
+    def new_file(self,file:BufferedReader,file_name:str) -> str:
         """
         Uploads a new file to the storage and inserts its metadata into the 'Files' table.
         
@@ -138,7 +127,7 @@ class SupabaseAdapter :
         file_insert = {
             "name":uploaded_file['Key'],
             "storage_id":uploaded_file["Id"],
-            "status":self.STATUS[1]
+            "status":STATUS[1]
         }
         return self.client.table("Files").insert(file_insert).execute().data[0]['id']
     
@@ -168,7 +157,7 @@ class SupabaseAdapter :
         check = self.get_result(file_id,pipeline_id)
         if check is not None:
             return check["id"]
-        self.client.table("Files").update({"status":self.STATUS[0]}).eq("id",file_id).execute()
+        self.client.table("Files").update({"status":STATUS[0]}).eq("id",file_id).execute()
         return self.client.table("Results").insert({"file_id":file_id,"pipeline_id":pipeline_id,"status":"pending OCR"}).execute().data[0]["id"]
     
     def get_result(self, file_id:str, pipeline_id:str) -> dict:
@@ -187,7 +176,7 @@ class SupabaseAdapter :
             return resp[0]
         return None
     
-    def update_ocr_result(self,result_id:str,ocr_json:dict,ocr_text:str) -> dict:
+    def update_ocr_result(self,file_id:str,ocr_json:dict,ocr_text:str) -> dict:
         """
         Updates the OCR result of a file in the database.
 
@@ -202,14 +191,13 @@ class SupabaseAdapter :
         Raises:
             Any exceptions that may occur during the database update process.
         """
-        return self.client.table("Results").update({"ocr_json":ocr_json,"ocr_text":ocr_text,"status":"pending LLM"}).eq("id",result_id).execute().data[0]["id"]
+        return self.client.table("Files").update({"ocr_json":ocr_json,"ocr_text":ocr_text,"status":"pending LLM"}).eq("id",file_id).execute().data[0]["id"]
 
-    def update_llm_result(self,result_id:str, pipeline_id: str, llm_json:dict,) -> dict:
+    def create_llm_result(self,file_id: str, pipeline_id: str, llm_json:dict,) -> dict:
         """
         Updates the LLm result for a file in the database.
 
         Args:
-            result_id (str): The ID of the file to update.
             llm_json (dict): The LLm JSON data to update.
             llm_score (float): The LLm score to update.
 
@@ -219,7 +207,7 @@ class SupabaseAdapter :
         Raises:
             Any exceptions that may occur during the database update process.
         """
-        return self.client.table("Results").update({"pipeline_id": pipeline_id, "llm_json":llm_json, "status":"pending Val"}).eq("id",result_id).execute().data[0]["id"]
+        return self.client.table("Results").insert({"file_id": file_id, "pipeline_id": pipeline_id, "llm_json":llm_json, "status":"pending Val"}).execute().data[0]["id"]
 
     def update_validation_result(self,result_id:str,corrected:dict,corrected_score:float) -> dict:
         """
@@ -238,12 +226,6 @@ class SupabaseAdapter :
         """
         return self.client.table("Results").update({"corrected":corrected,"corrected_score":corrected_score,"status":"completed"}).eq("id",result_id).execute().data[0]["id"]
     
-    def update_config_by_id(self, pipeline_id: str, config: dict):
-        return self.client.table('Pipelines').update({"config": config}).eq("id", pipeline_id).execute().data[0]['id']
-    
-    def update_pipeline_name_by_id(self, pipeline_id: str, pipeline_name: str):
-        return self.client.table('Pipelines').update({"name": pipeline_name}).eq("id", pipeline_id).execute().data[0]['id']
-        
     def get_files_by_pipeline_id(self,pipeline_id:str) -> list[dict]:
         """
         Retrieves all files associated with a pipeline.
@@ -282,7 +264,6 @@ class SupabaseAdapter :
             str: The URL of the file.
         """
         file = self.get_file_by_id(file_id)
-        print(file)
         bucket = file["name"].split("/")[0]
         name = file["name"].split("/")[-1]
         return self.client.storage.from_(bucket).create_signed_url(name,3600)
@@ -294,17 +275,7 @@ class SupabaseAdapter :
         Returns:
             list[dict]: A list of dictionaries representing the files.
         """
-        return self.client.table("Files").select("id", "name", "created_at", "status").execute().data
-    
-        
-    def get_all_results(self) -> list[dict]:
-        """
-        Retrieves all results from the 'Results' table.
-
-        Returns:
-            list[dict]: A list of dictionaries representing the results.
-        """
-        return self.client.table("Results").select('*').execute().data
+        return self.client.table("Files").select("*").execute().data
     
     def delete_file(self,file_id:str) -> dict:
         """
@@ -321,7 +292,31 @@ class SupabaseAdapter :
         name = file["name"].split("/")[-1]
         #self.client.table("Results").delete().eq("file_id",file_id).execute()
         return self.client.storage.from_(bucket).remove([name])[0]#.create_signed_url(name,3600)
+# ----------------------------------------------------------
     
+    def create_ocr_result(self, file_id: str, ocr_json: dict, ocr_text: str) -> dict:
+        """
+        Creates an ocr result with the given ocr_json, ocr_text, and file_id.
+
+        Args:
+            name (str): The name of the pipeline.
+            config (dict): The configuration for the pipeline.
+            prompt (str): The prompt for the pipeline.
+
+        Returns:
+            dict: The data of the created pipeline.
+        """
+        return self.client.table("Files").update({"ocr_json": ocr_json, "ocr_text": ocr_text}).eq("id", file_id).execute().data[0]
+
+    def get_all_results(self) -> list[dict]:
+        """
+        Retrieves all results from the 'Results' table.
+
+        Returns:
+            list[dict]: A list of dictionaries representing the results.
+        """
+        return self.client.table("Results").select('*').execute().data
+  
     def download_file(self, path: str):
         """
         Downloads a file from the storage.
@@ -335,3 +330,9 @@ class SupabaseAdapter :
         bucket_name, source = path.split('/')
         res = self.client.storage.from_(bucket_name).download(source)
         return res
+    
+    def update_config_by_id(self, pipeline_id: str, config: dict):
+        return self.client.table('Pipelines').update({"config": config}).eq("id", pipeline_id).execute().data[0]['id']
+    
+    def update_pipeline_name_by_id(self, pipeline_id: str, pipeline_name: str):
+        return self.client.table('Pipelines').update({"name": pipeline_name}).eq("id", pipeline_id).execute().data[0]['id']

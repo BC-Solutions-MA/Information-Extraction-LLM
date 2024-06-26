@@ -252,7 +252,7 @@ def ocr_job_manager(supabaseObj, df_files: pd.DataFrame, df_results: pd.DataFram
         
         with st.form("my_form"):
             # Unused files paths     
-            unused_filepaths = df_files[df_files['id'].map(lambda x: x not in df_results.file_id.unique())]['name'].unique()
+            unused_filepaths = df_files[df_files.ocr_json.isna()]['name'].unique()
             selected_filepaths = frontend.display_ocr_filters(unused_filepaths, use_all)
             # Button: Apply OCR
             cols = st.columns([4, 1, 4])
@@ -306,7 +306,7 @@ def kie_job_manager(supabaseObj, df_files: pd.DataFrame, df_pipelines: pd.DataFr
             if submit_button:
                 df_config = backend.kie_preprocess_config(df_files, df_pipelines, df_results, kie_configs)
                 chains = backend.init_chains_by_config(generator, df_config, df_pipelines)
-                df = backend.apply_kie_files(supabaseObj, df_config, df_results, chains)
+                df = backend.apply_kie_files(supabaseObj, df_config, df_files, df_results, chains)
                 
         
 # Page 2: OCR  ---------------------------------------------------------------------------------------------------------------------- P2
@@ -316,13 +316,13 @@ def ocr_page(supabaseObj):
     """
     # Read KYC db tables 
     df_dict = backend.read_tables_kyc(supabaseObj)
-    df_files, df_results = df_dict['Files'], df_dict['Results']
+    df_files = df_dict['Files']
     # Choose file
-    filepaths = df_files[df_files['id'].map(lambda x: x in df_results.file_id.unique())]['name'].tolist()
+    filepaths = df_files.dropna(subset=['ocr_json'])['name'].tolist()
     filepath = st.selectbox('Choose a processed file', filepaths)
     # Read file
     if len(filepaths):
-        res_row = df_results[df_results['file_id']==df_files[df_files['name']==filepath]['id'].iloc[0]].iloc[0]
+        res_row = df_files[df_files['name']==filepath].iloc[0]
         image = supabaseObj.download_file(filepath)
         columns = st.columns([15, 1, 15])
         with columns[0]:
@@ -361,10 +361,11 @@ def information_extraction(supabaseObj):
         if len(filepaths)!=0:
             filepath = cols[1].selectbox('Choose a processed file', filepaths)
             res_row = df_results[df_results['file_id'] == df_files[df_files['name'] == filepath]['id'].iloc[0]].iloc[0]
+            ocr_json = df_files[df_files['name']==filepath].ocr_json.iloc[0]
             image = supabaseObj.download_file(filepath)
             columns = st.columns([15, 1, 10])
             with columns[0]:
-                bboxes, titles_dict = backend.filter_bboxes_kie(res_row.ocr_json, res_row.llm_json)
+                bboxes, titles_dict = backend.filter_bboxes_kie(ocr_json, res_row.llm_json)
                 frontend.display_original_image_kie(image, bboxes,titles_dict)
             with columns[2]:
                 with st.expander('Text', expanded=True):

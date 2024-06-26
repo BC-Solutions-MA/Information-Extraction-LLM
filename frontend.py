@@ -265,8 +265,11 @@ def display_form_kie(df_files: pd.DataFrame, df_pipelines: pd.DataFrame, df_resu
         # File filters
         cols = st.columns(2)
         disabled = False
-        kie_files = df_files[df_files['id'].map(lambda x: x in df_results.dropna(subset=['ocr_json']).file_id.unique())]['name'].tolist()
-        kie_unprocessed_files = list(set(kie_files).intersection(df_files[df_files['id'].map(lambda x: x not in df_results.dropna(subset=['llm_json']).file_id.unique())]['name'].tolist()))
+        kie_files = df_files.dropna(subset=['ocr_json'])['name'].tolist()
+        if len(df_results)!=0: 
+            kie_unprocessed_files = list(set(kie_files).intersection(df_files[df_files['id'].map(lambda x: x not in df_results.file_id.unique())]['name'].tolist()))
+        else:
+            kie_unprocessed_files = []
         if kie_filters['use_all']:
             chosen_filepaths.append(kie_files)
             cols[0].multiselect('Choose files', [], disabled=True, key=f'msfile1{i}')
