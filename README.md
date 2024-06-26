@@ -67,7 +67,7 @@ To use this project, follow these steps:
 5. **Visualize Results:**
     Check the OCR and information extraction visualizations to see the results with features highlighted.
 
-![Example KYC Extraction](data/img/example_kie_receipt.png)
+![Example KYC Extraction](data/img/example_kie_receipt.PNG)
 
 ## Future Enhancements
 
