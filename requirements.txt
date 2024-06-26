@@ -1,0 +1,11 @@
+pandas
+numpy
+requests
+regex
+pillow
+supabase
+streamlit
+streamlit_image_zoom
+streamlit_option_menu
+langchain
+langchain_openai
