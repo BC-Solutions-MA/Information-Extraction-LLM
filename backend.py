@@ -11,6 +11,7 @@ import config
 from dataclasses import dataclass
 from time import sleep
 import llm
+import ocr
 
 # Data reading --------------------------------------------------------------------------------------------
 def read_tables_kyc(supabaseObj) -> dict[pd.DataFrame]:
@@ -106,12 +107,12 @@ def apply_kie_files(supabaseObj, df_kie_config: pd.DataFrame, df_files: pd.DataF
       
 
 # Metrics computation -------------------------------------------------------------------------------------------
-def compute_metrics_kyc(supabaseObj, df_dict) -> dict:
+@st.cache_data
+def compute_metrics_kyc(df_dict) -> dict:
     """
     Computes various KYC-related metrics from provided data.
 
     Parameters:
-    supabaseObj (object): An instance of a Supabase object (not used in this function but kept for consistency).
     df_dict (dict[str, pd.DataFrame]): A dictionary containing DataFrames with keys 'Files', 'Pipelines', and 'Results'.
 
     Returns:
@@ -130,7 +131,8 @@ def compute_metrics_kyc(supabaseObj, df_dict) -> dict:
     
     # 2nd Metric: Number of files processed by OCR + their percentage
     n_files_ocr = df_files.dropna(subset=['ocr_json'])['id'].nunique()
-    metrics['OCR'] = [n_files_ocr, None]
+    p_files_ocr = 0 if n_files == 0 else round(n_files_ocr / n_files * 100)
+    metrics['OCR'] = [n_files_ocr, p_files_ocr]
     
     # 3rd Metric: Number of files processed by KIE + their percentage
     n_files_kie = df_results.dropna(subset=['llm_json'])['file_id'].nunique()
@@ -140,8 +142,7 @@ def compute_metrics_kyc(supabaseObj, df_dict) -> dict:
     # 4th Metric: Number of pipelines + Percentage of used pipelines
     n_pipelines = len(df_pipelines)
     n_used_pipelines = len(df_pipelines[df_pipelines['id'].map(lambda x: x in df_results['pipeline_id'])])
-    p_used_pipelines = 0 if n_pipelines == 0 else round(n_used_pipelines / n_pipelines * 100)
-    metrics['Pipelines'] = [n_pipelines, p_used_pipelines]
+    metrics['Pipelines'] = [n_pipelines, None]
     
     return metrics
 
@@ -294,15 +295,19 @@ def filter_bboxes_kie(ocr_json, llm_json):
 
     """
     reference = ' || '.join(list(llm_json.values()))
-    final_result = []
+    final_result = {}
     titles_dict = {}
-    for block in ocr_json[0]:
-        for title, text in llm_json.items():
-            if (block[1][0].lower() in text.lower() and (len(block[1][0]) > 2 or block[1][0].lower()==text.lower())) or (('date' in title.lower() or 'tax' in title.lower()) and text.lower() in block[1][0].lower() and len(text)>2) or (len(text)>3 and len(text)>0.8*len(block[1][0]) and text.lower() in block[1][0].lower()):
-                final_result.append(block)
-                titles_dict[block[1][0]] = title
-                continue
-    return [final_result], titles_dict
+    paddle_results = ocr.get_individual_boxes(ocr_json)
+    for page_number, paddle_result in paddle_results.items():
+        blocks = []
+        for block in paddle_result:
+            for title, text in llm_json.items():
+                if (block[1].lower() in text.lower() and (len(block[1]) > 2 or block[1].lower()==text.lower())) or (('date' in title.lower() or 'tax' in title.lower()) and text.lower() in block[1].lower() and len(text)>2) or (len(text)>3 and len(text)>0.8*len(block[1]) and text.lower() in block[1].lower()):
+                    blocks.append(block)
+                    titles_dict[block[1]] = title
+                    continue
+        final_result[page_number] = blocks
+    return final_result, titles_dict
         
 # Utilities -----------------------------------------------------------------------------------------
 @st.cache_data

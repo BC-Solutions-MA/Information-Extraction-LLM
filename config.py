@@ -1,7 +1,7 @@
 import streamlit as st
 
 # LLM ---------------------------------------------------------------------------------
-GENERATOR_API_URI = "https://7e19-35-226-87-68.ngrok-free.app/v1"
+GENERATOR_API_URI = "https://93a5-34-72-211-144.ngrok-free.app/v1"
 MAX_TOKENS = 200
 TEMPLATE_PROMPT = ("You are an advanced information extraction algorithm. "
 "Extract information from the provided text only if it is explicitly mentioned. "
@@ -10,14 +10,14 @@ TEMPLATE_PROMPT = ("You are an advanced information extraction algorithm. "
 "{format_instructions}"
 )
 
-
-# OCR ----------------------------------------------------------------------------------
-OCR_API_ENDPOINT = "https://6a0e-35-226-87-68.ngrok-free.app/"
-FONT_PATH = "data/font/BioRhyme-Bold.otf"
-
 # Supabase ------------------------------------------------------------------------------
 URL: str = "https://hxshejoduhitvgdqhxto.supabase.co"
 SERVICE_KEY :str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh4c2hlam9kdWhpdHZnZHFoeHRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTcxNTc3NjkxOCwiZXhwIjoyMDMxMzUyOTE4fQ.nan7NUHTngr_0cazDms5dy3mGFOF2hIjtEkxDOIIolA"
+
+# Unstructured --------------------------------------------------------------------------
+UNSTRUCTURED_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJpbmdlc3Rpb24iLCJyb2xlcyI6WyJzZXJ2aWNlIl19.aHsCJxGWiq3c5XUJ7SWGbAVqmBTMs-WtUPw--wZttv4"
+UNSTRUCTURED_API_ENDPOINT = "https://866e-35-203-189-209.ngrok-free.app/ingest"
+FONT_PATH = "data/font/BioRhyme-Bold.otf"
 
 # Streamlit ------------------------------------------------------------------------------
 PAGE_TITLE = 'KYC'

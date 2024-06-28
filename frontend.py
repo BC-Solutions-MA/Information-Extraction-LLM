@@ -5,6 +5,8 @@ from PIL import Image, ImageDraw, ImageFont
 import config
 import backend
 import io
+import ocr
+import base64
 
 # Pipeline explorer viz --------------------------------------------------------------------------------------------------------------
 def display_form_updater(supabaseObj, pipelines, df_pipelines):
@@ -302,76 +304,118 @@ def display_file_reader():
 
 ## Images --------------------------------------------------------------------------------------------------------------
 @st.cache_data
-def display_original_image(uploaded_file, ocr_results):
+def display_original_image(images, ocr_results, page_number):
     """
     Displays the uploaded image with OCR results as rectangles on the image using image_zoom component.
 
     Args:
-        uploaded_file (UploadedFile): The uploaded image file.
+        images (dict): Dictionary of page numbers and their corresponding base64-encoded images.
         ocr_results (list): List of OCR results containing bounding boxes and text.
+        page_number (int): The page number of the image to be displayed.
     """
-    image = Image.open(io.BytesIO(uploaded_file))
+    # Extract individual OCR boxes for the specified page
+    paddle_results = ocr.get_individual_boxes(ocr_results)
+    paddle_results = paddle_results[page_number]
+    
+    # Decode the base64 image for the specified page
+    image_base64 = images[page_number]
+    image_data = base64.b64decode(image_base64)
+    
+    # Open the image from the bytes data
+    image = Image.open(io.BytesIO(image_data)) 
+    
+    # Draw bounding boxes on the image
     draw = ImageDraw.Draw(image)
-    for res in ocr_results:
-        for line in res:
-            box = [tuple(point) for point in line[0]]
-            box = [(min(point[0] for point in box), min(point[1] for point in box)),
-                   (max(point[0] for point in box), max(point[1] for point in box))]
-            txt = line[1][0]
-            draw.rectangle(box, outline="red", width=2)
-    size = 450 if image.size[1] - image.size[0] < 200 else 630
+    for res in paddle_results:
+        box = res[0]
+        # Calculate the bounding box coordinates
+        box = [(min(point[0] for point in box), min(point[1] for point in box)),
+               (max(point[0] for point in box), max(point[1] for point in box))]
+        draw.rectangle(box, outline="red", width=2)
+    
+    # Determine the size for image zoom
+    size = 500 if image.size[1] - image.size[0] < 200 else 680
+    
     with st.expander('Original document', expanded=True):
         image_zoom(image, keep_resolution=True, size=size)
 
 @st.cache_data
-def display_reconstructed_image(uploaded_file, ocr_results):
+def display_reconstructed_image(images, ocr_results, page_number):
     """
     Displays a reconstructed version of the uploaded image with OCR results using image_zoom component.
 
     Args:
-        uploaded_file (UploadedFile): The uploaded image file.
+        images (dict): Dictionary of page numbers and their corresponding base64-encoded images.
         ocr_results (list): List of OCR results containing bounding boxes and text.
+        page_number (int): The page number of the image to be displayed.
     """
-    image = Image.open(io.BytesIO(uploaded_file))
+    # Extract individual OCR boxes for the specified page
+    paddle_results = ocr.get_individual_boxes(ocr_results)
+    paddle_results = paddle_results[page_number]
+    
+    # Decode the base64 image for the specified page
+    image_base64 = images[page_number]
+    image_data = base64.b64decode(image_base64)
+    
+    # Open the image from the bytes data
+    image = Image.open(io.BytesIO(image_data))
+    
+    # Create a white image
     white_image = Image.new("RGB", image.size, "white").convert("RGB")
     draw = ImageDraw.Draw(white_image)
-    font = ImageFont.truetype(config.FONT_PATH, size=10)
-    for res in ocr_results:
-        for line in res:
-            box = [tuple(point) for point in line[0]]
-            box = [(min(point[0] for point in box), min(point[1] for point in box)),
-                   (max(point[0] for point in box), max(point[1] for point in box))]
-            txt = line[1][0]
-            draw.rectangle(box, outline="red", width=2)
-            draw.text((box[0][0], box[0][1]), txt, fill="black", font=font)
+    
+    # Use a specific font for text rendering
+    font = ImageFont.truetype(config.FONT_PATH, size=14)
+    
+    # Draw bounding boxes and text on the white image
+    for res in paddle_results:
+        box = res[0]
+        # Calculate the bounding box coordinates
+        box = [(min(point[0] for point in box), min(point[1] for point in box)),
+               (max(point[0] for point in box), max(point[1] for point in box))]
+        txt = res[1]
+        draw.rectangle(box, outline="red", width=2)
+        draw.text((box[0][0], box[0][1]), txt, fill="black", font=font)
+    
+    # Determine the size for image zoom
     size = 500 if image.size[1] - image.size[0] < 200 else 680
+    
     with st.expander('Reconstructed document', expanded=True):
         image_zoom(white_image, keep_resolution=True, size=size)
         
 @st.cache_data
-def display_original_image_kie(uploaded_file, filtered_ocr_results, titles_dict):
+def display_original_image_kie(images, bboxes, titles_dict):
     """
     Displays the uploaded image with OCR results as rectangles on the image using image_zoom component.
 
     Args:
-        uploaded_file (UploadedFile): The uploaded image file.
-        ocr_results (list): List of OCR results containing bounding boxes and text.
+        base64_image_str (str): The base64-encoded image string.
+        filtered_ocr_results (list): List of filtered OCR results containing bounding boxes and text.
+        titles_dict (dict): Dictionary mapping text to titles.
     """
-    image = Image.open(io.BytesIO(uploaded_file))
-    draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype(config.FONT_PATH, size=10)
-    for res in filtered_ocr_results:
-        for line in res:
-            box = [tuple(point) for point in line[0]]
+    for page_number in bboxes.keys():
+        # Decode the base64 image for the specified page
+        image_base64 = images[page_number]
+        image_data = base64.b64decode(image_base64)
+        # Open the image from the bytes data
+        image = Image.open(io.BytesIO(image_data))
+        draw = ImageDraw.Draw(image)
+        # Use a default font for text rendering
+        font = ImageFont.truetype(config.FONT_PATH, size=10)
+        for res in bboxes[page_number]:
+            box = res[0]
+            # Calculate the bounding box coordinates
             box = [(min(point[0] for point in box), min(point[1] for point in box)),
                    (max(point[0] for point in box), max(point[1] for point in box))]
-            txt = line[1][0]
-            title = titles_dict[txt]
+            txt = res[1]
+            title = titles_dict.get(txt, "")
             draw.rectangle(box, outline="red", width=2)
-            draw.text((box[1][0]+10, box[1][1]-15), title, fill="black", font=font)
-    size = 750 if image.size[1] - image.size[0] < 200 else 800
-    with st.expander('Original document', expanded=True):
-        image_zoom(image, keep_resolution=True, size=size)
+            draw.text((box[1][0] + 10, box[1][1] - 15), title, fill="black", font=font)
+        # Determine the size for image zoom
+        size = 750 if image.size[1] - image.size[0] < 200 else 800
+        with st.expander('Original document', expanded=True):
+            image_zoom(image, keep_resolution=True, size=size)
+
 
 # UI utilities ----------------------------------------------------------------------------------------------
 def initUI() -> None:

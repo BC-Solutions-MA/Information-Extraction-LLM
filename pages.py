@@ -215,14 +215,14 @@ def process_runner(supabaseObj):
     df_dict = backend.read_tables_kyc(supabaseObj)
     df_files, df_pipelines, df_results = df_dict['Files'], df_dict['Pipelines'], df_dict['Results']
     # Display metrics - monitoring
-    monitoring(supabaseObj, df_dict)
+    monitoring(df_dict)
     # OCR Job Manager
     ocr_job_manager(supabaseObj, df_files, df_results)
     # Information extraction job manager
     kie_job_manager(supabaseObj, df_files, df_pipelines, df_results)
 
 # Sub² page 3_1
-def monitoring(supabaseObj, df_dict: dict):
+def monitoring(df_dict: dict):
     """
     Displays monitoring metrics for the KYC process using Streamlit.
 
@@ -232,7 +232,7 @@ def monitoring(supabaseObj, df_dict: dict):
     """
     with st.expander('Monitoring', expanded=True):    
         # Compute metrics (# Files unused/ocr/kie and # Pipelines)
-        metrics = backend.compute_metrics_kyc(supabaseObj, df_dict)
+        metrics = backend.compute_metrics_kyc(df_dict)
         # Display metrics
         frontend.display_metrics_kyc(metrics)
 
@@ -258,28 +258,29 @@ def ocr_job_manager(supabaseObj, df_files: pd.DataFrame, df_results: pd.DataFram
             cols = st.columns([4, 1, 4])
             submitted = cols[1].form_submit_button("Apply OCR")
             if submitted:
-                # Download files
-                files = [supabaseObj.download_file(filepath) for filepath in selected_filepaths]
                 # Apply OCR w/ progress bar
                 progress_bar = st.progress(0, text="OCR in progress. Please wait...")
                 bar_incremetor = backend.Program()
                 n_updated = 0
-                for i, file in enumerate(files):    
-                    file_id = df_files[df_files['name'].map(lambda x: x == selected_filepaths[i])]['id'].iloc[0]
-                    if selected_filepaths[i].split('.')[-1].lower() not in ['jpg', 'png', 'jpeg']:
-                        st.info(f'{selected_filepaths[i]} is not an image!')
-                    else:
-                        # Apply OCR
-                        ocr_json = ocr.perform_ocr_with_base64(file)
+                for i, filepath in enumerate(selected_filepaths):    
+                    file_id = df_files[df_files['name']==filepath]['id'].iloc[0]
+                    file_url = supabaseObj.get_file_url(file_id)['signedURL']
+                    # Apply OCR
+                    ocr_json = ocr.unstructured_by_url(file_url)
+                    if ocr_json:
+                        paddle_result = ocr.get_individual_boxes(ocr_json)
                         ocr_text = ocr.reconstruct_text(ocr_json)
                         # Save OCR Result
                         supabaseObj.create_ocr_result(file_id, ocr_json, ocr_text)
-                        n_updated += 1
+                    else:
+                        st.info(f'{filepath} OCR failed!')
+                    n_updated += 1
                     bar_incremetor.increment()
                     progress_perc = round(bar_incremetor.progress / len(selected_filepaths) * 100)
                     progress_bar.progress(progress_perc, text=f"Progress: {progress_perc}%")
                 st.markdown(f'<b> {n_updated} images have been processed!</b>', unsafe_allow_html=True)            
                 st.experimental_rerun()
+                
                 
 # Sub² Page 3_3
 def kie_job_manager(supabaseObj, df_files: pd.DataFrame, df_pipelines: pd.DataFrame, df_results: pd.DataFrame):
@@ -317,20 +318,27 @@ def ocr_page(supabaseObj):
     # Read KYC db tables 
     df_dict = backend.read_tables_kyc(supabaseObj)
     df_files = df_dict['Files']
+    
     # Choose file
+    columns = st.columns([10, 2])
     filepaths = df_files.dropna(subset=['ocr_json'])['name'].tolist()
-    filepath = st.selectbox('Choose a processed file', filepaths)
+    filepath = columns[0].selectbox('Choose a processed file', filepaths)
+    page_number_container = columns[1].container()
     # Read file
     if len(filepaths):
         res_row = df_files[df_files['name']==filepath].iloc[0]
-        image = supabaseObj.download_file(filepath)
+        # Images
+        images = ocr.get_page_images(res_row.ocr_json)
+        page_number = page_number_container.number_input(f'Page n° (total={len(images)})', 1, len(images), 1, 1)
         columns = st.columns([15, 1, 15])
         with columns[0]:
-            frontend.display_original_image(image, res_row.ocr_json)
+            frontend.display_original_image(images, res_row.ocr_json, int(page_number))
         with columns[2]:
-            frontend.display_reconstructed_image(image, res_row.ocr_json)
+            frontend.display_reconstructed_image(images, res_row.ocr_json, int(page_number))
             with st.expander('Text', expanded=True):
                st.markdown(res_row.ocr_text)
+    else:
+        page_number = page_number_container.number_input(f'Page n° (Select a file)', 0, 0, 0, disabled=True)
 
 
 # Page 3: Information Extraction ---------------------------------------------------------------------------------------------------- P3
@@ -349,7 +357,6 @@ def information_extraction(supabaseObj):
     # Read KYC db tables 
     df_dict = backend.read_tables_kyc(supabaseObj)
     df_files, df_pipelines, df_results = df_dict['Files'], df_dict['Pipelines'], df_dict['Results']
-   
     # Choose file
     cols = st.columns(2)
     pipeline_ids = df_results.dropna(subset=['llm_json']).pipeline_id.unique()
@@ -362,11 +369,11 @@ def information_extraction(supabaseObj):
             filepath = cols[1].selectbox('Choose a processed file', filepaths)
             res_row = df_results[df_results['file_id'] == df_files[df_files['name'] == filepath]['id'].iloc[0]].iloc[0]
             ocr_json = df_files[df_files['name']==filepath].ocr_json.iloc[0]
-            image = supabaseObj.download_file(filepath)
+            images = ocr.get_page_images(ocr_json)
             columns = st.columns([15, 1, 10])
             with columns[0]:
                 bboxes, titles_dict = backend.filter_bboxes_kie(ocr_json, res_row.llm_json)
-                frontend.display_original_image_kie(image, bboxes,titles_dict)
+                frontend.display_original_image_kie(images, bboxes, titles_dict)
             with columns[2]:
                 with st.expander('Text', expanded=True):
                    st.json(dict(sorted(res_row.llm_json.items())))
