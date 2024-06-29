@@ -302,7 +302,7 @@ def filter_bboxes_kie(ocr_json, llm_json):
         blocks = []
         for block in paddle_result:
             for title, text in llm_json.items():
-                if (block[1].lower() in text.lower() and (len(block[1]) > 2 or block[1].lower()==text.lower())) or (('date' in title.lower() or 'tax' in title.lower()) and text.lower() in block[1].lower() and len(text)>2) or (len(text)>3 and len(text)>0.8*len(block[1]) and text.lower() in block[1].lower()):
+                if (block[1].lower() in text.lower() and (len(block[1]) > 2 or block[1].lower()==text.lower())) or (('date' in title.lower() or 'tax' in title.lower()) and text.lower() in block[1].lower() and len(text)>2) or (len(text)>3 and len(text)>0.45*len(block[1]) and text.lower() in block[1].lower()):
                     blocks.append(block)
                     titles_dict[block[1]] = title
                     continue

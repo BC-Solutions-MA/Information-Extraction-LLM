@@ -37,10 +37,9 @@ def reconstruct_text(ocr_results: dict) -> str:
     Returns:
     str: The reconstructed text in the correct reading order.
     """
-    layout_data = get_layout_boxes(ocr_results)
     text = ""
-    for layout in layout_data:
-        text+=layout['text']+'\n'
+    for page in ocr_results:
+        text+=page['text']+'\n'
     return text
 
 # Utilities --------------------------------------------------------------------------------------------------------------------------------------
@@ -56,8 +55,7 @@ def get_individual_boxes(response: dict):
         dict: A dictionary where keys are page numbers and values are lists of tuples, 
               each containing a bounding box and the corresponding text.
     """
-    paddle_bboxes = [x['metadata'] for x in response if x['type'] == 'Paddle_BBox']
-    paddle_bboxes = {x['page_number']: [[el['bbox'], el['text']] for el in x['paddle_bbox']] for x in paddle_bboxes}
+    paddle_bboxes = {x['metadata']['page_number']: [[el['bbox'], el['text']] for el in x['metadata']['paddle_bbox']] for x in response}
     return paddle_bboxes
 
 @st.cache_data
@@ -71,24 +69,6 @@ def get_page_images(response: dict):
     Returns:
         dict: A dictionary where keys are page numbers and values are the corresponding base64-encoded images.
     """
-    page_images = [x['metadata']['images'] for x in response if x['type'] == 'Page_Images']
-    page_images = {x['page_number']: x['image'] for x in page_images[0]}
+    page_images = {x['metadata']['page_number']: x['metadata']['image'] for x in response}
     return page_images
-
-@st.cache_data
-def get_layout_boxes(response: dict):
-    """
-    Extracts layout boxes from the response that are not of type 'Paddle_BBox' or 'Page_Images'.
-
-    Args:
-        response (dict): The response dictionary containing layout data.
-
-    Returns:
-        list: A list of layout data dictionaries.
-    """
-    layout_data = [x for x in response if x['type'] not in ['Paddle_BBox', 'Page_Images']]
-    return layout_data
-
-
-
 

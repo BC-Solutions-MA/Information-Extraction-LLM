@@ -1,7 +1,7 @@
 import streamlit as st
 
 # LLM ---------------------------------------------------------------------------------
-GENERATOR_API_URI = "https://93a5-34-72-211-144.ngrok-free.app/v1"
+GENERATOR_API_URI = "https://a523-35-202-119-21.ngrok-free.app/v1"
 MAX_TOKENS = 200
 TEMPLATE_PROMPT = ("You are an advanced information extraction algorithm. "
 "Extract information from the provided text only if it is explicitly mentioned. "
@@ -16,7 +16,7 @@ SERVICE_KEY :str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSI
 
 # Unstructured --------------------------------------------------------------------------
 UNSTRUCTURED_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJpbmdlc3Rpb24iLCJyb2xlcyI6WyJzZXJ2aWNlIl19.aHsCJxGWiq3c5XUJ7SWGbAVqmBTMs-WtUPw--wZttv4"
-UNSTRUCTURED_API_ENDPOINT = "https://866e-35-203-189-209.ngrok-free.app/ingest"
+UNSTRUCTURED_API_ENDPOINT = "https://9bd1-34-170-221-179.ngrok-free.app/ingest"
 FONT_PATH = "data/font/BioRhyme-Bold.otf"
 
 # Streamlit ------------------------------------------------------------------------------
